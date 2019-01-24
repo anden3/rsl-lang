@@ -1,0 +1,116 @@
+{
+    "scopeName": "source.rsl",
+    
+    "patterns": [
+        { "include": "#definition"},
+        { "include": "#statements"},
+        { "include": "#expressions"},
+        { "include": "#comments"}
+    ],
+
+    "repository": {
+        "definition": {
+            "patterns": [{"include": "#func_definition"}, {"include": "#declarations"}]
+        },
+        "expressions": {
+            "patterns": [{"include": "#func_call"}, {"include": "#number"}]
+        },
+        "statements": {
+            "patterns": [
+                {"include": "#loop_control"},
+                {"include": "#loop_mod"},
+                {"include": "#conditional"},
+                {"include": "#keywords"}
+            ]
+        },
+        "comments": {
+            "patterns": [
+                {"include": "#single_line_comment"},
+                {"include": "#multi_line_comment"}
+            ]
+        },
+
+        "func_definition": {
+            "match": "^(\\w+)\\s+(\\w+)\\s*\\(.*[^;]",
+            "captures": {
+                "1": { "patterns": [{"include": "#shader_type"}, {"include": "#type"}] },
+                "2": { "name": "entity.name.function.rsl"}
+            }
+        },
+        "func_call": {
+            "begin": "(\\w+)\\s*\\(",
+            "beginCaptures": {
+                "1": { "name": "variable.function.rsl" }
+            },
+            "end": "\\)+;",
+
+            "patterns": [{"include": "#expressions"}]
+        },
+        "shader_type": {
+            "name": "storage.type.function.rsl",
+            "match": "(light|surface|volume|displacement|imager)"
+        },
+        "assignments": {
+            "match": "(?:(output|extern)\\s+)?(?:(varying|uniform)?\\s+)(\\w+)\\s+(\\w+)\\s*(=)\\s*(.+)(;)",
+            "captures": {
+                "1": { "name": "storage.modifier.rsl" },
+                "2": { "name": "storage.modifier.rsl" },
+                "3": { "patterns": [{"include": "#type"}] },
+                "4": { "name": "variable.parameter.rsl" },
+                "5": { "name": "keyword.operator.assignment.rsl" },
+                "6": { "patterns": [{"include": "#expressions"}] },
+                "7": { "name": "punctuation.terminator.rsl" }
+            }
+        },
+        "declarations": {
+            "begin": "(?:(output|extern)\\s+)?(?:(varying|uniform)?\\s+)(float|string|color|point|vector|normal|matrix|void)\\s+(\\w+)",
+            "beginCaptures": {
+                "1": { "name": "storage.modifier.rsl" },
+                "2": { "name": "storage.modifier.rsl" },
+                "3": { "name": "storage.type.rsl" },
+                "4": { "name": "variable.other.rsl" }
+            },
+            "end": ";"
+        },
+        "type": {
+            "name": "storage.type.rsl",
+            "match": "(float|string|color|point|vector|normal|matrix|void)"
+        },
+        "number": {
+            "name": "constant.numeric.rsl",
+            "match": "\\b\\d+\\.?\\d?+\\b"
+        },
+
+        "loop_control": {
+            "match": "\\b(while|for|gather|solar|illuminate|illuminance)\\b\\s*\\(",
+            "captures": {"1": {"name": "keyword.control.rsl"}}
+        },
+        "conditional": {
+            "patterns": [
+                { "match": "\\belse if\\b", "name": "keyword.control.conditional.rsl"},
+                { "match": "\\bif\\b", "name": "keyword.control.conditional.rsl"},
+                { "match": "\\belse\\b", "name": "keyword.control.conditional.rsl"}
+            ]
+        },
+
+        "keywords": {
+            "match": "(return)",
+            "name": "keyword.control.rsl"
+        },
+
+        "single_line_comment": {
+            "match": "(//).*$",
+            "captures": {
+                "0": { "name": "comment.line.rsl" },
+                "1": { "name": "punctuation.definition.comment.rsl" }
+            }
+        },
+        "multi_line_comment": {
+            "begin": "(/\\*)",
+            "end": "(\\*/)",
+            "beginCaptures": { "1": "punctuation.definition.comment.rsl"},
+            "endCaptures": { "1": "punctuation.definition.comment.rsl"},
+            "name": "comment.block.rsl"
+        }
+    }
+}
