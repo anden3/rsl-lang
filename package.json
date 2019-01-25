@@ -43,7 +43,7 @@
 		"keybindings": [
 			{
 				"command": "rsl-lang.compileRIB",
-				"key": ""
+				"key": "Cmd+r"
 			}
 		],
 		"menus": {

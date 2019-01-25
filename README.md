@@ -1,65 +1,55 @@
 # rsl-lang README
 
-This is the README for your extension "rsl-lang". After writing up a brief description, we recommend including the following sections.
+An extension for Visual Studio Code which (eventually) adds full support to the RenderMan Shading Language (RSL) and RenderMan Interface Bytestream (RIB) languages.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+### Automatic compilation
 
-For example if there is an image subfolder under your extension project workspace:
+While editing any `.sl` or `.rib` file, simply press the `rsl-lang.compileRIB` hotkey and the scene will be rendered.
 
-\!\[feature X\]\(images/feature-x.png\)
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+### Color support
+
+All `.sl` files now display a color picker besides any colors defined in the file.
+> TODO: Add animation here.
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+### AQSIS Renderer
+Can be downloaded from `https://sourceforge.net/projects/aqsis/` or `https://github.com/aqsis/aqsis`.
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
 This extension contributes the following settings:
 
-* `myExtension.enable`: enable/disable this extension
-* `myExtension.thing`: set to `blah` to do something
+* `rsl.aqsis.path`: Where your AQSIS installation is. For example `/Applications/Aqsis.app` on Mac, and `C:\Program Files (x86)\AQSIS` on Windows.
+
+* `rsl.aqsis.binPath`: Where the AQSIS binaries are. Look below for a known issue with this.
+
+* `rsl.compiledShaderFolder`: Where the extension should look for compiled shaders
+
+* `rsl.renderedImageFolder`: Where the extension should put rendered images
+
+## Keybindings
+
+* `rsl-lang.compileRIB`: Start compiling and rendering the scene.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+### Compiling only works on Windows and Mac.
+This is due to the extension not relying on the AQSIS binaries to be in the path,
+instead using their direct path to run them.
+However I only know of the binary path on Windows and Mac,
+which means that the binaries cannot run on any other systems for now.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
+### [0.0.2] - 2019-01-25
+- Added - Very basic support for compiling shaders.
 
-### 1.0.0
+### [0.0.1] - 2019-01-24
+- Initial release
 
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
------------------------------------------------------------------------------------------------------------
-
-## Working with Markdown
-
-**Note:** You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+CMD+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux) or `Cmd+Space` (macOS) to see a list of Markdown snippets
-
-### For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+- Added - Support for changing colors inside .sl files.
+- Added - Started work on syntax highlighting, looks pretty bad at the moment.
