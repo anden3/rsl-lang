@@ -4,7 +4,6 @@
 	"description": "Support for the RenderMan Shading Language.",
 	"version": "0.0.1",
 	"license": "MIT",
-
 	"author": {
 		"name": "André Vennberg",
 		"email": "andre.vennberg@gmail.com",
@@ -18,41 +17,65 @@
 		"email": "andre.vennberg@gmail.com",
 		"url": "https://github.com/anden3/rsl-lang/issues"
 	},
-
-	"keywords": ["rsl", "sl", "shader", "renderman", "rib"],
+	"keywords": [
+		"rsl",
+		"sl",
+		"shader",
+		"renderman",
+		"rib"
+	],
 	"categories": [
 		"Programming Languages"
 	],
-
 	"activationEvents": [
-		"onCommand:extension.helloWorld",
+		"onCommand:rsl-lang.compileRIB",
 		"onLanguage:rsl",
 		"onLanguage:rib"
 	],
 	"main": "./out/extension.js",
-
 	"contributes": {
 		"commands": [
 			{
-				"command": "extension.helloWorld",
-				"title": "Hello World"
+				"command": "rsl-lang.compileRIB",
+				"title": "Compile RIB file"
 			}
 		],
+		"keybindings": [
+			{
+				"command": "rsl-lang.compileRIB",
+				"key": ""
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "rsl-lang.compileRIB",
+					"when": "editorLangId == 'rsl'"
+				},
+				{
+					"command": "rsl-lang.compileRIB",
+					"when": "editorLangId == 'rib'"
+				}
+			]
+		},
 		"languages": [
 			{
 				"id": "rsl",
 				"aliases": [
-					"RSL", "RenderMan Shading Language"
+					"RSL",
+					"RenderMan Shading Language"
 				],
 				"extensions": [
-					".sl", ".slx"
+					".sl",
+					".slx"
 				],
 				"configuration": "./language_configs/rsl.language-configuration.json"
 			},
 			{
 				"id": "rib",
 				"aliases": [
-					"RIB", "RenderMan Interface Bytestream"
+					"RIB",
+					"RenderMan Interface Bytestream"
 				],
 				"extensions": [
 					".rib"
@@ -75,37 +98,45 @@
 		"configuration": [
 			{
 				"title": "Compiler",
+				"type": "object",
 				"properties": {
 					"rsl.compiledShaderFolder": {
 						"type": "string",
-						"default": "./shaders",
+						"default": "shaders",
 						"description": "Where to put compiled shaders."
 					},
 					"rsl.renderedImageFolder": {
 						"type": "string",
-						"default": "./images",
+						"default": "images",
 						"description": "Where to put rendered images."
 					}
 				}
 			},
 			{
 				"title": "AQSIS Renderer",
+				"type": "object",
 				"properties": {
-					"aqsis.path": {
-						"type": ["string", "null"],
+					"rsl.aqsis.path": {
+						"type": [
+							"string",
+							"null"
+						],
 						"default": null,
 						"description": "The path to the installation folder of the AQSIS Renderer."
+					},
+					"rsl.aqsis.binPath": {
+						"type": [
+							"string", "null"
+						],
+						"default": null,
+						"description": "The path to the 'bin' folder of the AQSIS Renderer."
 					}
 				}
 			}
 		],
 		"configurationDefaults": {
-			"[rsl]": {
-
-			},
-			"[rib]": {
-
-			}
+			"[rsl]": {},
+			"[rib]": {}
 		}
 	},
 	"scripts": {

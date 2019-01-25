@@ -1,4 +1,7 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
+
+import { compileRIB } from './rsl-compile'
 
 class RSLColorProvider implements vscode.DocumentColorProvider {
 	colorRgx: RegExp = /color\s*\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*\)/g;
@@ -48,16 +51,44 @@ class RSLColorProvider implements vscode.DocumentColorProvider {
 		return p;
 	}
 }
+
 export function activate(context: vscode.ExtensionContext) {
 	const RSL_MODE: vscode.DocumentFilter = { language: 'rsl', scheme: 'file' };
 
-	/*
-	let disposable = vscode.commands.registerCommand('extension.helloWorld', () => {
-		vscode.window.showInformationMessage('Hello World!');
-	});
+	let config = vscode.workspace.getConfiguration('rsl');
+
+	if (config.get('aqsis.path') === null) {
+		vscode.window.showErrorMessage("rsl.aqsis.path is not defined!");
+		// TODO: Let user fix this.
+		return;
+	}
+	else if (config.get('aqsis.binPath') === null) {
+		let aqsisHome = config.get('aqsis.path');
+		if (aqsisHome === undefined) {
+			throw Error("aqsis.path is not null but it is undefined.");
+		}
+
+		let newPath = <string>aqsisHome;
+
+		switch (process.platform) {
+			case "darwin":
+				newPath = path.join(newPath, "Contents/Resources/bin"); break;
+			case "win32":
+				newPath = path.join(newPath, "bin"); break;
+			default:
+				vscode.window.showErrorMessage(
+					"Your operating system is unfortunately not supported yet. \
+					Please make an issue on 'https://github.com/anden3/rsl-lang/issues' with your system details."
+				);
+				return;
+		}
+
+		config.update('aqsis.binPath', newPath);
+	}
+
+	let disposable = vscode.commands.registerCommand('rsl-lang.compileRIB', compileRIB);
 
 	context.subscriptions.push(disposable);
-	*/
 
 	context.subscriptions.push(
 		vscode.languages.registerColorProvider(RSL_MODE, new RSLColorProvider())
