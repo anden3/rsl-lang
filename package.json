@@ -9,6 +9,7 @@
 		"email": "andre.vennberg@gmail.com",
 		"url": "https://github.com/anden3"
 	},
+	"publisher": "anden3",
 	"homepage": "https://github.com/anden3/rsl-lang",
 	"repository": {
 		"url": "https://github.com/anden3/rsl-lang"
@@ -126,7 +127,8 @@
 					},
 					"rsl.aqsis.binPath": {
 						"type": [
-							"string", "null"
+							"string",
+							"null"
 						],
 						"default": null,
 						"description": "The path to the 'bin' folder of the AQSIS Renderer."

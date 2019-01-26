@@ -155,7 +155,7 @@ async function compileShader(shaderUri: vscode.Uri): Promise<null> {
             return;
         }
 
-        let process = cp.exec(`${binPath}/aqsl -o ${outputFile} ${shaderUri.fsPath}`, {
+        cp.exec(`${binPath}/aqsl -o ${outputFile} ${shaderUri.fsPath}`, {
             'cwd': workspace.uri.fsPath,
             'env': {
                 'AQSISHOME': config.get('aqsis.path'),
