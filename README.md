@@ -8,7 +8,6 @@ An extension for Visual Studio Code which (eventually) adds full support to the 
 
 While editing any `.sl` or `.rib` file, simply press the `rsl-lang.compileRIB` hotkey and the scene will be rendered.
 
-
 ### Color support
 
 All `.sl` files now display a color picker besides any colors defined in the file.
@@ -45,10 +44,10 @@ which means that the binaries cannot run on any other systems for now.
 
 ## Release Notes
 
-### [0.0.2] - 2019-01-25
+### [0.2.0] - 2019-01-25
 - Added - Very basic support for compiling shaders.
 
-### [0.0.1] - 2019-01-24
+### [0.1.0] - 2019-01-24
 - Initial release
 
 - Added - Support for changing colors inside .sl files.
