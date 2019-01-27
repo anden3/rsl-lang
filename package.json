@@ -39,6 +39,10 @@
 			{
 				"command": "rsl-lang.compileRIB",
 				"title": "Compile RIB file"
+			},
+			{
+				"command": "rsl-lang.debug.getCompiledShaders",
+				"title": "[DEBUG] Get a list of compiled shaders"
 			}
 		],
 		"keybindings": [
@@ -152,10 +156,13 @@
 		"vscode": "^1.30.0"
 	},
 	"devDependencies": {
-		"typescript": "^3.1.4",
-		"vscode": "^1.1.25",
-		"tslint": "^5.8.0",
+		"@types/mocha": "^2.2.42",
 		"@types/node": "^8.10.25",
-		"@types/mocha": "^2.2.42"
+		"tslint": "^5.8.0",
+		"typescript": "^3.1.4",
+		"vscode": "^1.1.25"
+	},
+	"dependencies": {
+		"jimp": "^0.6.0"
 	}
 }

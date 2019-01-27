@@ -6,7 +6,7 @@ An extension for Visual Studio Code which (eventually) adds full support to the 
 
 ### Automatic compilation
 
-While editing any `.sl` or `.rib` file, simply press the `rsl-lang.compileRIB` hotkey and the scene will be rendered.
+While editing any `.sl` or `.rib` file, simply press the `rsl-lang.compileRIB` hotkey and the scene will be rendered and a PNG file will be created and displayed to the side.
 
 ### Color support
 
@@ -43,6 +43,10 @@ However I only know of the binary path on Windows and Mac,
 which means that the binaries cannot run on any other systems for now.
 
 ## Release Notes
+
+## [0.3.0] - 2019-01-27
+- Added - Syntax highlighting should now be complete for .sl files.
+- Added - Compiling should now work, although showing errors is not implemented yet.
 
 ### [0.2.0] - 2019-01-25
 - Added - Very basic support for compiling shaders.

@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { compileRIB } from './rsl-compile'
+import { compile } from './rsl-compile'
 
 class RSLColorProvider implements vscode.DocumentColorProvider {
 	colorRgx: RegExp = /color\s*\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*\)/g;
@@ -52,15 +52,13 @@ class RSLColorProvider implements vscode.DocumentColorProvider {
 	}
 }
 
-export function activate(context: vscode.ExtensionContext) {
-	const RSL_MODE: vscode.DocumentFilter = { language: 'rsl', scheme: 'file' };
-
+function validateConfig(): boolean {
 	let config = vscode.workspace.getConfiguration('rsl');
 
 	if (config.get('aqsis.path') === null) {
 		vscode.window.showErrorMessage("rsl.aqsis.path is not defined!");
 		// TODO: Let user fix this.
-		return;
+		return false;
 	}
 	else if (config.get('aqsis.binPath') === null) {
 		let aqsisHome = config.get('aqsis.path');
@@ -80,16 +78,37 @@ export function activate(context: vscode.ExtensionContext) {
 					"Your operating system is unfortunately not supported yet. \
 					Please make an issue on 'https://github.com/anden3/rsl-lang/issues' with your system details."
 				);
-				return;
+				return false;
 		}
 
 		config.update('aqsis.binPath', newPath);
 	}
 
-	let disposable = vscode.commands.registerCommand('rsl-lang.compileRIB', compileRIB);
+	return true;
+}
 
-	context.subscriptions.push(disposable);
+export function activate(context: vscode.ExtensionContext) {
+	const RSL_MODE: vscode.DocumentFilter = { language: 'rsl', scheme: 'file' };
 
+	if (!validateConfig()) {
+		return;
+	}
+
+	// Commands.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('rsl-lang.compileRIB', compile)
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('rsl-lang.debug.getCompiledShaders', () => {
+			vscode.commands.getCommands(false).then(commands => {
+				commands.forEach(cmd => {
+					console.log(cmd);
+				});
+			});
+		})
+	);
+
+	// Providers.
 	context.subscriptions.push(
 		vscode.languages.registerColorProvider(RSL_MODE, new RSLColorProvider())
 	);

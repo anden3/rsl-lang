@@ -2,14 +2,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
+import * as jimp from 'jimp';
 
 interface RIBInfo {
+    name: string;
     uri: vscode.Uri;
     shaders: string[];
     outImage: string;
 }
 
-export async function compileRIB() {
+export async function compile() {
     if (vscode.window.activeTextEditor === undefined) {
         return;
     }
@@ -34,7 +36,14 @@ export async function compileRIB() {
         ribPath = result;
     }
 
-    let info             = await getRIBInfo(ribPath);
+    let info = await getRIBInfo(ribPath);
+    if (info === undefined) {
+        vscode.window.showErrorMessage(
+            `Couldn't load RIB file: ${vscode.workspace.asRelativePath(ribPath)}`
+        );
+        return;
+    }
+
     let shadersToCompile = await getShadersToCompile(info);
 
     let shaderCompilationPromises: Promise<null>[] = [];
@@ -43,7 +52,16 @@ export async function compileRIB() {
         shaderCompilationPromises.push(compileShader(shader));
     });
 
-    await Promise.all(shaderCompilationPromises);
+    await Promise.all(shaderCompilationPromises).catch(reason => {
+        vscode.window.showErrorMessage(reason);
+        return;
+    });
+
+    let ribCompileP = compileRIB(info);
+    await ribCompileP;
+
+    let imageUri = await convertImage(info);
+    await displayImage(imageUri);
 
     return Promise.resolve();
 }
@@ -51,7 +69,7 @@ export async function compileRIB() {
 async function getShadersToCompile(info: RIBInfo): Promise<vscode.Uri[]> {
     let ws = <vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(info.uri);
 
-    let compiledShadersP     = getCompiledShaders(ws);
+    let compiledShadersP     = getCompiledShaderNames(ws);
     let shadersLastModifiedP = getModifiedTimes(info);
 
     let compiledShaders     = await compiledShadersP;
@@ -60,20 +78,10 @@ async function getShadersToCompile(info: RIBInfo): Promise<vscode.Uri[]> {
     let toBeCompiled: vscode.Uri[] = [];
 
     for (let [shader, mTime] of shadersLastModified) {
-        if (!compiledShaders.has(shader)) {
+        let compiledMTime = compiledShaders.get(path.basename(shader.fsPath, '.sl'));
+
+        if (compiledMTime === undefined || mTime > compiledMTime) {
             toBeCompiled.push(shader);
-        }
-        else {
-            let compiledMTime;
-            if ((compiledMTime = compiledShaders.get(shader)) !== undefined) {
-                if (mTime > compiledMTime) {
-                    toBeCompiled.push(shader);
-                }
-            }
-            else {
-                console.log("This shouldn't happen.");
-                toBeCompiled.push(shader);
-            }
         }
     }
 
@@ -81,17 +89,24 @@ async function getShadersToCompile(info: RIBInfo): Promise<vscode.Uri[]> {
 }
 
 async function findRIBFile(containingFolder: string): Promise<vscode.Uri | undefined> {
-    return vscode.workspace.findFiles(`${containingFolder}/*.rib`).then((paths: vscode.Uri[]) => {
-        if (paths.length > 1) {
+    return vscode.workspace.findFiles(`${containingFolder}/*.rib`).then(paths => {
+        if (paths.length === 0) {
+            return undefined;
+        }
+        else if (paths.length === 1) {
+            return paths[0];
+        }
+        else {
             let map: Map<string, vscode.Uri> = new Map();
+            paths.forEach(p => map.set(
+                vscode.workspace.asRelativePath(p.fsPath), p)
+            );
 
-            paths.forEach(p => {
-                map.set(p.fsPath, p);
-            });
-
-            let pick = vscode.window.showQuickPick(paths.map((uri: vscode.Uri) => uri.fsPath)).then((value) => {
-                if (value === undefined) {
-                    console.error("Quick pick returned undefined value.");
+            let pick = vscode.window.showQuickPick(
+                paths.map(uri => vscode.workspace.asRelativePath(uri.fsPath))
+            ).then((value) => {
+                if (value === undefined || map.get(value) === undefined) {
+                    // Dialog was closed before selecting.
                     return undefined;
                 }
 
@@ -99,9 +114,6 @@ async function findRIBFile(containingFolder: string): Promise<vscode.Uri | undef
             });
 
             return pick;
-        }
-        else {
-            return paths[0];
         }
     });
 }
@@ -113,12 +125,20 @@ async function getRIBInfo(ribPath: vscode.Uri): Promise<RIBInfo> {
     return new Promise<RIBInfo>((resolve, reject) => {
         fs.readFile(ribPath.fsPath, 'utf8', (err, data) => {
             if (err) {
-                throw err;
+                vscode.window.showErrorMessage(
+                    `Couldn't open file ${vscode.workspace.asRelativePath(ribPath)}: ${err.message}`
+                );
+                resolve(undefined);
+                return;
             }
 
             let imageMatch = data.match(imageRgx);
             if (imageMatch === null || imageMatch.length === 1) {
-                throw SyntaxError("No image target specified in " + ribPath);
+                vscode.window.showErrorMessage(
+                    `No image target specified in ${vscode.workspace.asRelativePath(ribPath)}`
+                );
+                resolve(undefined);
+                return;
             }
 
             let image = imageMatch[1];
@@ -131,6 +151,7 @@ async function getRIBInfo(ribPath: vscode.Uri): Promise<RIBInfo> {
             }
 
             resolve({
+                name: path.basename(ribPath.fsPath, '.rib'),
                 uri: ribPath,
                 shaders: shaders,
                 outImage: image
@@ -151,7 +172,7 @@ async function compileShader(shaderUri: vscode.Uri): Promise<null> {
         let workspace = vscode.workspace.getWorkspaceFolder(shaderUri);
 
         if (workspace === undefined) {
-            reject("Workspace is no longer available.");
+            reject(`Compilation of ${shaderName} failed: Workspace is no longer available.`);
             return;
         }
 
@@ -163,31 +184,95 @@ async function compileShader(shaderUri: vscode.Uri): Promise<null> {
             }
         }, (error, stdout, stderr) => {
             if (error) {
-                console.error(error);
-                throw(error);
+                reject(`Compilation of ${shaderName} failed: ${error.message}`);
+                return;
             }
-            console.log(stdout);
-            console.error(stderr);
+
+            if (stdout) {
+                console.log(`[LOG][Shader Compilation] ${shaderName}.rib: ${stdout}`);
+            }
+            if (stderr) {
+                console.error(`[ERROR][Shader Compilation] ${shaderName}.rib: ${stderr}`);
+            }
 
             resolve();
         });
     });
 }
 
-async function getCompiledShaders(workspace: vscode.WorkspaceFolder): Promise<Map<vscode.Uri, number>> {
-    // const config = vscode.workspace.getConfiguration('rsl');
-    // const shaderPath = config.get('compiledShaderFolder');
+async function compileRIB(info: RIBInfo): Promise<null> {
+    return new Promise<null>((resolve, reject) => {
+        const config = vscode.workspace.getConfiguration('rsl');
+        const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(info.uri));
 
-    // let pattern = new vscode.RelativePattern(workspace, `${shaderPath}/*.slx`);
-    let pattern = new vscode.RelativePattern(workspace, '**/*.slx');
+        cp.exec(`${config.get('aqsis.binPath')}/aqsis ${info.uri.fsPath}`, {
+            'cwd': workspace.uri.fsPath,
+            'env': {
+                'AQSISHOME': config.get('aqsis.path'),
+                'AQSIS_SHADER_PATH': `${config.get('compiledShaderFolder')}/:&`
+            }
+        }, (error, stdout, stderr) => {
+            if (error) {
+                reject(`Compilation of ${info.name}.rib failed: ${error.message}`);
+                return;
+            }
 
-    return vscode.workspace.findFiles(pattern).then((paths: vscode.Uri[]) => {
-        let map: Map<vscode.Uri, number> = new Map();
+            if (stdout) {
+                console.log(`[LOG][RIB Compilation] ${info.name}.rib: ${stdout}`);
+            }
+            if (stderr) {
+                console.error(`[ERROR][RIB Compilation] ${info.name}.rib: ${stderr}`);
+            }
 
-        paths.forEach(uri => {
-            let stats = fs.statSync(uri.fsPath);
-            map.set(uri, stats.mtimeMs);
-        });
+            resolve();
+        }); 
+    });
+}
+
+async function convertImage(info: RIBInfo): Promise<vscode.Uri> {
+    const config = vscode.workspace.getConfiguration('rsl');
+    const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(info.uri));
+
+    let input = path.join(workspace.uri.fsPath, info.outImage);
+    let output = path.join(
+        workspace.uri.fsPath,
+        <string>config.get('renderedImageFolder'),
+        path.basename(info.outImage, path.extname(info.outImage)) + ".png"
+    );
+
+    await jimp.read(input).then(image => {
+        image.writeAsync(output);
+    }).catch(err => {
+        console.error(err);
+    });
+
+    await fs.unlink(input, err => {
+        if (err) {
+            console.error(err);
+        }
+    });
+
+    return vscode.Uri.file(output);
+}
+
+async function displayImage(path: vscode.Uri) {
+    return vscode.commands.executeCommand('vscode.open', path, vscode.ViewColumn.Beside);
+}
+
+async function getCompiledShaderNames(workspace: vscode.WorkspaceFolder)
+    : Promise<Map<string, number>>
+{
+    const config = vscode.workspace.getConfiguration('rsl');
+    const shaderPath = config.get('compiledShaderFolder');
+
+    let pattern = new vscode.RelativePattern(workspace, `${shaderPath}/*.slx`);
+
+    return vscode.workspace.findFiles(pattern).then(files => {
+        let map: Map<string, number> = new Map();
+        files.forEach(uri => map.set(
+            path.basename(uri.fsPath, '.slx'),
+            fs.statSync(uri.fsPath).mtimeMs)
+        );
 
         return map;
     });
@@ -196,15 +281,10 @@ async function getCompiledShaders(workspace: vscode.WorkspaceFolder): Promise<Ma
 async function getModifiedTimes(info: RIBInfo) : Promise<Map<vscode.Uri, number>> {
     let dirPath = path.join(info.uri.fsPath, '..');
 
-    return vscode.workspace.findFiles(
-        new vscode.RelativePattern(dirPath, "*.sl")).then((files: vscode.Uri[]) => {
-            let map: Map<vscode.Uri, number> = new Map();
+    return vscode.workspace.findFiles(new vscode.RelativePattern(dirPath, "*.sl")).then(files => {
+        let map: Map<vscode.Uri, number> = new Map();
+        files.forEach(uri => map.set(uri, fs.statSync(uri.fsPath).mtimeMs));
 
-            files.forEach(file => {
-                let stats = fs.statSync(file.fsPath);
-                map.set(file, stats.mtimeMs);
-            });
-
-            return map;
-        });
+        return map;
+    });
 }

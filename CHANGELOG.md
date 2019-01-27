@@ -2,6 +2,7 @@
 
 ## [0.3.0] - 2019-01-27
 - Added - Syntax highlighting should now be complete for .sl files.
+- Changed - Compiling should now work, although showing errors is not implemented yet.
 
 ## [0.2.0] - 2019-01-25
 - Added - Very basic support for compiling shaders.
