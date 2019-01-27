@@ -2,31 +2,50 @@
     "scopeName": "source.rsl",
     
     "patterns": [
+        { "include": "#comments"},
+        { "include": "#preprocessor"},
         { "include": "#definition"},
-        { "include": "#statements"},
-        { "include": "#expressions"},
-        { "include": "#comments"}
+        { "include": "#keywords"},
+        { "include": "#expressions"}
     ],
 
     "repository": {
-        "definition": {
-            "patterns": [{"include": "#func_definition"}, {"include": "#declarations"}]
-        },
         "expressions": {
-            "patterns": [{"include": "#func_call"}, {"include": "#number"}]
+            "patterns": [
+                {"include": "#number"},
+                {"include": "#constants"}
+            ]
         },
-        "statements": {
+        "definition": {
+            "patterns": [
+                {"include": "#func_call"}
+            ]
+        },
+        "keywords": {
             "patterns": [
                 {"include": "#loop_control"},
                 {"include": "#loop_mod"},
                 {"include": "#conditional"},
-                {"include": "#keywords"}
+                {"include": "#return"},
+                {"include": "#var_modifiers_1"},
+                {"include": "#var_modifiers_2"},
+                {"include": "#type"},
+                {"include": "#shader_type"},
+                {"include": "#operators"}
             ]
         },
         "comments": {
             "patterns": [
                 {"include": "#single_line_comment"},
                 {"include": "#multi_line_comment"}
+            ]
+        },
+        "preprocessor": {
+            "patterns": [
+                {
+                    "name": "meta.preprocessor.rsl",
+                    "match": "^(#\\w+)"
+                }
             ]
         },
 
@@ -42,39 +61,27 @@
             "beginCaptures": {
                 "1": { "name": "variable.function.rsl" }
             },
-            "end": "\\)+;",
+            "end": "\\)",
 
-            "patterns": [{"include": "#expressions"}]
+            "patterns": [
+                {"include": "$self"}
+            ]
         },
         "shader_type": {
             "name": "storage.type.function.rsl",
-            "match": "(light|surface|volume|displacement|imager)"
+            "match": "\\b(light|surface|volume|displacement|imager)\\b"
         },
-        "assignments": {
-            "match": "(?:(output|extern)\\s+)?(?:(varying|uniform)?\\s+)(\\w+)\\s+(\\w+)\\s*(=)\\s*(.+)(;)",
-            "captures": {
-                "1": { "name": "storage.modifier.rsl" },
-                "2": { "name": "storage.modifier.rsl" },
-                "3": { "patterns": [{"include": "#type"}] },
-                "4": { "name": "variable.parameter.rsl" },
-                "5": { "name": "keyword.operator.assignment.rsl" },
-                "6": { "patterns": [{"include": "#expressions"}] },
-                "7": { "name": "punctuation.terminator.rsl" }
-            }
+        "var_modifiers_1": {
+            "name": "storage.modifier.rsl",
+            "match": "\\b(output|extern)\\b"
         },
-        "declarations": {
-            "begin": "(?:(output|extern)\\s+)?(?:(varying|uniform)?\\s+)(float|string|color|point|vector|normal|matrix|void)\\s+(\\w+)",
-            "beginCaptures": {
-                "1": { "name": "storage.modifier.rsl" },
-                "2": { "name": "storage.modifier.rsl" },
-                "3": { "name": "storage.type.rsl" },
-                "4": { "name": "variable.other.rsl" }
-            },
-            "end": ";"
+        "var_modifiers_2": {
+            "name": "storage.modifier.rsl",
+            "match": "\\b(varying|uniform)\\b"
         },
         "type": {
             "name": "storage.type.rsl",
-            "match": "(float|string|color|point|vector|normal|matrix|void)"
+            "match": "\\b(float|string|color|point|vector|normal|matrix|void)\\b"
         },
         "number": {
             "name": "constant.numeric.rsl",
@@ -82,20 +89,33 @@
         },
 
         "loop_control": {
-            "match": "\\b(while|for|gather|solar|illuminate|illuminance)\\b\\s*\\(",
-            "captures": {"1": {"name": "keyword.control.rsl"}}
+            "name": "keyword.control.rsl",
+            "match": "\\b(while|for|gather|solar|illuminate|illuminance)\\b"
         },
         "conditional": {
-            "patterns": [
-                { "match": "\\belse if\\b", "name": "keyword.control.conditional.rsl"},
-                { "match": "\\bif\\b", "name": "keyword.control.conditional.rsl"},
-                { "match": "\\belse\\b", "name": "keyword.control.conditional.rsl"}
-            ]
+            "name": "keyword.control.conditional.rsl",
+            "match": "\\b(if|else)\\b"
         },
 
-        "keywords": {
-            "match": "(return)",
-            "name": "keyword.control.rsl"
+        "return": {
+            "name": "keyword.control.rsl",
+            "match": "\\b(return)\\b"
+        },
+        "constants": {
+            "name": "variable.other.constant.rsl",
+            "match": "\\b([A-Z_]+[A-Z0-9_]+)\\b"
+        },
+        "operators": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.assignment.rsl",
+                    "match": "([+\\-*/]?=)"
+                },
+                {
+                    "name": "keyword.operator.arithmetic.rsl",
+                    "match": "([+\\-\\./*\\^])"
+                }
+            ]
         },
 
         "single_line_comment": {
