@@ -2,7 +2,7 @@
 	"name": "rsl-lang",
 	"displayName": "RSL-Language",
 	"description": "Support for the RenderMan Shading Language.",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"license": "MIT",
 	"author": {
 		"name": "André Vennberg",
@@ -107,7 +107,13 @@
 				"properties": {
 					"rsl.images.format": {
 						"type": "string",
-						"enum": ["PNG", "JPEG", "BMP", "TIFF", "GIF"],
+						"enum": [
+							"PNG",
+							"JPEG",
+							"BMP",
+							"TIFF",
+							"GIF"
+						],
 						"description": "What format should rendered images be converted to?"
 					},
 					"rsl.images.keepHistory": {
@@ -120,7 +126,6 @@
 						"default": false,
 						"description": "Should the names of images include a timestamp?"
 					},
-
 					"rsl.folder.compiledShaders": {
 						"type": "string",
 						"default": "shaders",
