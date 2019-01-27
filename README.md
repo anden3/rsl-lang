@@ -6,12 +6,18 @@ An extension for Visual Studio Code which (eventually) adds full support to the 
 
 ### Automatic compilation
 
-While editing any `.sl` or `.rib` file, simply press the `rsl-lang.compileRIB` hotkey and the scene will be rendered and a PNG file will be created and displayed to the side.
+While editing any `.sl` or `.rib` file, simply press the `rsl-lang.compileRIB` hotkey and the scene will be rendered and the resulting image will be created and displayed to the side of the editor.
+> TODO: Add animation here.
 
 ### Color support
 
 All `.sl` files now display a color picker besides any colors defined in the file.
 > TODO: Add animation here.
+
+### Syntax highlighting
+
+All `.sl` files now have any functions, keywords, comments, etc... colored according to your active color theme.
+> TODO: Add example image here.
 
 ## Requirements
 
@@ -26,9 +32,15 @@ This extension contributes the following settings:
 
 * `rsl.aqsis.binPath`: Where the AQSIS binaries are. Look below for a known issue with this.
 
-* `rsl.compiledShaderFolder`: Where the extension should look for compiled shaders
+* `rsl.compiledShaderFolder`: Where the extension should look for compiled shaders. Defaults to `shaders`.
 
-* `rsl.renderedImageFolder`: Where the extension should put rendered images
+* `rsl.renderedImageFolder`: Where the extension should put rendered images. Defaults to `images`.
+
+* `rsl.images.format`: What format to save the rendered images in. Defaults to `PNG`.
+
+* `rsl.images.keepHistory`: If new rendered images should be put in a folder along with older images. Defaults to `false`.
+
+* `rsl.images.timestamp` If rendered images should use a timestamp for their name. Defaults to `false`.
 
 ## Keybindings
 
@@ -42,11 +54,22 @@ instead using their direct path to run them.
 However I only know of the binary path on Windows and Mac,
 which means that the binaries cannot run on any other systems for now.
 
+## TODO
+
+* Add linting for error messages.
+
 ## Release Notes
 
 ## [0.3.0] - 2019-01-27
 - Added - Syntax highlighting should now be complete for .sl files.
+
 - Added - Compiling should now work, although showing errors is not implemented yet.
+
+- Added - Option to keep old rendered images: `rsl.images.keepHistory` (default: false).
+
+- Added - Option to name rendered images with a timestamp: `rsl.images.timestamp` (default: false).
+
+- Added - Option to pick format of rendered images: `rsl.images.format` (default: `PNG`).
 
 ### [0.2.0] - 2019-01-25
 - Added - Very basic support for compiling shaders.

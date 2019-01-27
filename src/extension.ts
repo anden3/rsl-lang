@@ -55,15 +55,15 @@ class RSLColorProvider implements vscode.DocumentColorProvider {
 function validateConfig(): boolean {
 	let config = vscode.workspace.getConfiguration('rsl');
 
-	if (config.get('aqsis.path') === null) {
+	if (config.get('aqsis.path') === "") {
 		vscode.window.showErrorMessage("rsl.aqsis.path is not defined!");
 		// TODO: Let user fix this.
 		return false;
 	}
-	else if (config.get('aqsis.binPath') === null) {
+	else if (config.get('aqsis.binPath') === "") {
 		let aqsisHome = config.get('aqsis.path');
 		if (aqsisHome === undefined) {
-			throw Error("aqsis.path is not null but it is undefined.");
+			throw Error("aqsis.path is not empty but it is undefined.");
 		}
 
 		let newPath = <string>aqsisHome;

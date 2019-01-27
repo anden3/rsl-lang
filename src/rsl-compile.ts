@@ -4,6 +4,8 @@ import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as jimp from 'jimp';
 
+import * as util from './util'
+
 interface RIBInfo {
     name: string;
     uri: vscode.Uri;
@@ -164,7 +166,7 @@ async function compileShader(shaderUri: vscode.Uri): Promise<null> {
     return new Promise<null>((resolve, reject) => {
         const config = vscode.workspace.getConfiguration('rsl');
         const binPath = config.get('aqsis.binPath');
-        const compiledShaderPath = config.get('compiledShaderFolder');
+        const compiledShaderPath = config.get('folder.compiledShaders');
 
         let shaderName = path.basename(shaderUri.fsPath, '.sl');
         let outputFile = `./${compiledShaderPath}/${shaderName}.slx`;
@@ -209,7 +211,7 @@ async function compileRIB(info: RIBInfo): Promise<null> {
             'cwd': workspace.uri.fsPath,
             'env': {
                 'AQSISHOME': config.get('aqsis.path'),
-                'AQSIS_SHADER_PATH': `${config.get('compiledShaderFolder')}/:&`
+                'AQSIS_SHADER_PATH': `${config.get('folder.compiledShaders')}/:&`
             }
         }, (error, stdout, stderr) => {
             if (error) {
@@ -233,21 +235,57 @@ async function convertImage(info: RIBInfo): Promise<vscode.Uri> {
     const config = vscode.workspace.getConfiguration('rsl');
     const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(info.uri));
 
-    let input = path.join(workspace.uri.fsPath, info.outImage);
-    let output = path.join(
+    let imageFormat = (<string>config.get('images.format')).toLowerCase();
+    let imageName = path.basename(info.outImage, path.extname(info.outImage));
+    let imagePath = path.join(
         workspace.uri.fsPath,
-        <string>config.get('renderedImageFolder'),
-        path.basename(info.outImage, path.extname(info.outImage)) + ".png"
+        <string>config.get('folder.images')
     );
+
+    if (!fs.existsSync(imagePath)) {
+        fs.mkdirSync(imagePath);
+    }
+
+    if (config.get('images.keepHistory')) {
+        imagePath = path.join(imagePath, imageName);
+
+        if (!fs.existsSync(imagePath)) {
+            fs.mkdirSync(imagePath);
+        }
+        if (!config.get('images.timestamp')) {
+            imageName = fs.readdirSync(imagePath).length.toString();
+        }
+    }
+    else {
+        // Delete history.
+        let historyFolder = path.join(imagePath, imageName);
+
+        if (fs.existsSync(historyFolder)) {
+            fs.readdirSync(historyFolder).forEach(file => {
+                fs.unlinkSync(path.join(historyFolder, file));
+            });
+
+            fs.rmdirSync(historyFolder);
+        }
+    }
+
+    if (config.get('images.timestamp')) {
+        imageName = util.getLocalISOString(new Date());
+    }
+
+    let input = path.join(workspace.uri.fsPath, info.outImage);
+    let output = `${path.join(imagePath, imageName)}.${imageFormat}`;
 
     await jimp.read(input).then(image => {
         image.writeAsync(output);
     }).catch(err => {
+        // TODO: Handle errors.
         console.error(err);
     });
 
     await fs.unlink(input, err => {
         if (err) {
+            // TODO: Handle errors.
             console.error(err);
         }
     });
@@ -263,7 +301,7 @@ async function getCompiledShaderNames(workspace: vscode.WorkspaceFolder)
     : Promise<Map<string, number>>
 {
     const config = vscode.workspace.getConfiguration('rsl');
-    const shaderPath = config.get('compiledShaderFolder');
+    const shaderPath = config.get('folder.compiledShaders');
 
     let pattern = new vscode.RelativePattern(workspace, `${shaderPath}/*.slx`);
 

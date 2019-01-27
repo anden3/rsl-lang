@@ -102,39 +102,43 @@
 		],
 		"configuration": [
 			{
-				"title": "Compiler",
+				"title": "RSL",
 				"type": "object",
 				"properties": {
-					"rsl.compiledShaderFolder": {
+					"rsl.images.format": {
+						"type": "string",
+						"enum": ["PNG", "JPEG", "BMP", "TIFF", "GIF"],
+						"description": "What format should rendered images be converted to?"
+					},
+					"rsl.images.keepHistory": {
+						"type": "boolean",
+						"default": false,
+						"description": "Should old images be kept when rendering new ones?"
+					},
+					"rsl.images.timestamp": {
+						"type": "boolean",
+						"default": false,
+						"description": "Should the names of images include a timestamp?"
+					},
+
+					"rsl.folder.compiledShaders": {
 						"type": "string",
 						"default": "shaders",
-						"description": "Where to put compiled shaders."
+						"description": "The directory used to store compiled shaders."
 					},
-					"rsl.renderedImageFolder": {
+					"rsl.folder.images": {
 						"type": "string",
 						"default": "images",
-						"description": "Where to put rendered images."
-					}
-				}
-			},
-			{
-				"title": "AQSIS Renderer",
-				"type": "object",
-				"properties": {
+						"description": "The directory used to store rendered images."
+					},
 					"rsl.aqsis.path": {
-						"type": [
-							"string",
-							"null"
-						],
-						"default": null,
+						"type": "string",
+						"default": "",
 						"description": "The path to the installation folder of the AQSIS Renderer."
 					},
 					"rsl.aqsis.binPath": {
-						"type": [
-							"string",
-							"null"
-						],
-						"default": null,
+						"type": "string",
+						"default": "",
 						"description": "The path to the 'bin' folder of the AQSIS Renderer."
 					}
 				}
