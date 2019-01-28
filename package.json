@@ -2,7 +2,7 @@
 	"name": "rsl-lang",
 	"displayName": "RSL-Language",
 	"description": "Support for the RenderMan Shading Language.",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"license": "MIT",
 	"author": {
 		"name": "André Vennberg",
