@@ -1,6 +1,6 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 
+import * as util from './util';
 import { compile } from './rsl-compile';
 
 class RSLColorProvider implements vscode.DocumentColorProvider {
@@ -52,66 +52,91 @@ class RSLColorProvider implements vscode.DocumentColorProvider {
 	}
 }
 
-function validateConfig(): boolean {
+async function validateConfig(): Promise<void> {
 	let config = vscode.workspace.getConfiguration('rsl');
 
 	if (config.get('aqsis.path') === "") {
-		vscode.window.showErrorMessage("rsl.aqsis.path is not defined!");
-		// TODO: Let user fix this.
-		return false;
+		let answer = await vscode.window.showErrorMessage(
+			"The path to AQSIS Renderer is not defined!",{ modal: false },
+			"Choose Path..."
+		);
+
+		if (answer === undefined) {
+			return Promise.reject();
+		}
+
+		switch (answer) {
+			case "Choose Path...": {
+				let openOptions: vscode.OpenDialogOptions;
+
+				if (process.platform === "darwin") {
+					openOptions = {
+						canSelectFiles: true,
+						canSelectFolders: false,
+						canSelectMany: false,
+						filters: {
+							'Application': ['app']
+						},
+						defaultUri: vscode.Uri.file('/Applications')
+					};
+				}
+				else {
+					openOptions = {
+						canSelectFolders: true,
+						canSelectFiles: false,
+						canSelectMany: false
+					};
+				}
+
+				let selection = await vscode.window.showOpenDialog(openOptions);
+
+				if (selection === undefined || selection.length !== 1) {
+					return Promise.reject();
+				}
+				
+				let path = selection[0];
+				await config.update('aqsis.path', path.fsPath);
+
+				return validateConfig();
+			}
+		}
 	}
 	else if (config.get('aqsis.binPath') === "") {
-		let aqsisHome = config.get('aqsis.path');
-		if (aqsisHome === undefined) {
-			throw Error("aqsis.path is not empty but it is undefined.");
-		}
+		let aqsisHome = <string>config.get('aqsis.path');
 
-		let newPath = <string>aqsisHome;
-
-		switch (process.platform) {
-			case "darwin":
-				newPath = path.join(newPath, "Contents/Resources/bin"); break;
-			case "win32":
-				newPath = path.join(newPath, "bin"); break;
-			default:
-				vscode.window.showErrorMessage(
-					"Your operating system is unfortunately not supported yet. \
-					Please make an issue on 'https://github.com/anden3/rsl-lang/issues' with your system details."
-				);
-				return false;
-		}
-
-		config.update('aqsis.binPath', newPath);
+		util.findDirectoryWithContents(aqsisHome, 'bin', ['aqsisrc'])
+			.then(path => config.update('aqsis.binPath', path))
+			.catch(() => {
+				vscode.window.showErrorMessage("Could not find AQSIS bin path.");
+			});
 	}
 
-	return true;
+	return Promise.resolve();
 }
 
 export function activate(context: vscode.ExtensionContext) {
 	const RSL_MODE: vscode.DocumentFilter = { language: 'rsl', scheme: 'file' };
 
-	if (!validateConfig()) {
-		return;
-	}
+	validateConfig().then(() => {
+		// Listeners.
+		context.subscriptions.push(
+			vscode.workspace.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('rsl')) {
+					validateConfig();
+				}
+			})
+		);
 
-	// Commands.
-	context.subscriptions.push(
-		vscode.commands.registerCommand('rsl-lang.compileRIB', compile)
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('rsl-lang.debug.getCompiledShaders', () => {
-			vscode.commands.getCommands(false).then(commands => {
-				commands.forEach(cmd => {
-					console.log(cmd);
-				});
-			});
-		})
-	);
+		// Commands.
+		context.subscriptions.push(
+			vscode.commands.registerCommand('rsl-lang.compileRIB', compile)
+		);
 
-	// Providers.
-	context.subscriptions.push(
-		vscode.languages.registerColorProvider(RSL_MODE, new RSLColorProvider())
-	);
+		// Providers.
+		context.subscriptions.push(
+			vscode.languages.registerColorProvider(RSL_MODE, new RSLColorProvider())
+		);
+	});
 }
 
 export function deactivate() {

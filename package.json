@@ -39,10 +39,6 @@
 			{
 				"command": "rsl-lang.compileRIB",
 				"title": "Compile RIB file"
-			},
-			{
-				"command": "rsl-lang.debug.getCompiledShaders",
-				"title": "[DEBUG] Get a list of compiled shaders"
 			}
 		],
 		"keybindings": [
