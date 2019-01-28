@@ -48,17 +48,18 @@ This extension contributes the following settings:
 
 ## Known Issues
 
-### Compiling only works on Windows and Mac.
-This is due to the extension not relying on the AQSIS binaries to be in the path,
-instead using their direct path to run them.
-However I only know of the binary path on Windows and Mac,
-which means that the binaries cannot run on any other systems for now.
+Nothing as of now.
 
-## TODO
+## Planned Features
 
 * Add linting for error messages.
 
 ## Release Notes
+
+### [0.4.0] - 2019-01-28
+- Added - If `rsl.aqsis.path` have not been defined when the extension is activated, it will now prompt the user to select the installation directory.
+
+- Added - If `rsl.aqsis.binPath` have not been defined when the extension is activated, but `rsl.aqsis.path` has been, it will now iterate through the directories in the AQSIS installation until it finds the bin folder and set that as the path.
 
 ### [0.3.1] - 2019-01-28
 - Fixed - Timestamps no longer include `:` characters, as that is not allowed on Windows.
