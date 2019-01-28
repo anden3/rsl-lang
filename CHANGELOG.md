@@ -1,5 +1,14 @@
 # Change Log
 
+## [0.3.1] - 2019-01-28
+- Fixed - Timestamps no longer include `:` characters, as that is not allowed on Windows.
+
+- Fixed - All shell commands are now quoted to allow for spaces in paths.
+
+- Fixed - `rsl.images.format` now actually has a default (`PNG`), I forgot to add it last time.
+
+- Fixed - Added missing semicolons after imports.
+
 ## [0.3.0] - 2019-01-27
 - Added - Syntax highlighting should now be complete for .sl files.
 

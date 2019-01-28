@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as jimp from 'jimp';
 
-import * as util from './util'
+import * as util from './util';
 
 interface RIBInfo {
     name: string;
@@ -178,7 +178,7 @@ async function compileShader(shaderUri: vscode.Uri): Promise<null> {
             return;
         }
 
-        cp.exec(`${binPath}/aqsl -o ${outputFile} ${shaderUri.fsPath}`, {
+        cp.exec(`"${binPath}/aqsl" -o "${outputFile}" "${shaderUri.fsPath}"`, {
             'cwd': workspace.uri.fsPath,
             'env': {
                 'AQSISHOME': config.get('aqsis.path'),
@@ -207,7 +207,7 @@ async function compileRIB(info: RIBInfo): Promise<null> {
         const config = vscode.workspace.getConfiguration('rsl');
         const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(info.uri));
 
-        cp.exec(`${config.get('aqsis.binPath')}/aqsis ${info.uri.fsPath}`, {
+        cp.exec(`"${config.get('aqsis.binPath')}/aqsis" "${info.uri.fsPath}"`, {
             'cwd': workspace.uri.fsPath,
             'env': {
                 'AQSISHOME': config.get('aqsis.path'),

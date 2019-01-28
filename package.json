@@ -114,7 +114,8 @@
 							"TIFF",
 							"GIF"
 						],
-						"description": "What format should rendered images be converted to?"
+						"description": "What format should rendered images be converted to?",
+						"default": "PNG"
 					},
 					"rsl.images.keepHistory": {
 						"type": "boolean",

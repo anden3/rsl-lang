@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { compile } from './rsl-compile'
+import { compile } from './rsl-compile';
 
 class RSLColorProvider implements vscode.DocumentColorProvider {
 	colorRgx: RegExp = /color\s*\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*\)/g;
