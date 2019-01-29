@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 
 import * as util from './util';
@@ -56,9 +57,34 @@ async function validateConfig(): Promise<void> {
 	let config = vscode.workspace.getConfiguration('rsl');
 
 	if (config.get('aqsis.path') === "") {
+		// First try with some default installation paths.
+		switch (process.platform) {
+			case "darwin":
+				if (fs.existsSync('/Applications/Aqsis.app')) {
+					await config.update('aqsis.path', '/Applications/Aqsis.app');
+					console.log(
+						"[LOG][RSL Config] Found AQSIS installation at '/Applications/Aqsis.app'"
+					);
+
+					return validateConfig();
+				}
+				break;
+			
+			case "win32":
+				if (fs.existsSync('c:/Program Files (x86)/Aqsis')) {
+					await config.update('aqsis.path', 'c:/Program Files (x86)/Aqsis');
+					console.log(
+						"[LOG][RSL Config] Found AQSIS installation at 'C:\\Program Files (x86)\\Aqsis'"
+					);
+
+					return validateConfig();
+				}
+				break;
+		}
+
 		let answer = await vscode.window.showErrorMessage(
 			"The path to AQSIS Renderer is not defined!",{ modal: false },
-			"Choose Path..."
+			"Choose Path...", "Download AQSIS (opens browser)"
 		);
 
 		if (answer === undefined) {
@@ -67,47 +93,63 @@ async function validateConfig(): Promise<void> {
 
 		switch (answer) {
 			case "Choose Path...": {
-				let openOptions: vscode.OpenDialogOptions;
+				let pathP: Promise<vscode.Uri>;
 
-				if (process.platform === "darwin") {
-					openOptions = {
-						canSelectFiles: true,
-						canSelectFolders: false,
-						canSelectMany: false,
-						filters: {
-							'Application': ['app']
-						},
-						defaultUri: vscode.Uri.file('/Applications')
-					};
-				}
-				else {
-					openOptions = {
-						canSelectFolders: true,
-						canSelectFiles: false,
-						canSelectMany: false
-					};
+				switch (process.platform) {
+					case "darwin":
+						pathP = util.promptSelectFolder(
+							vscode.Uri.file('/Applications'), { 'Application': ['app'] }
+						);
+						break;
+					
+					case "win32":
+						pathP = util.promptSelectFolder(vscode.Uri.file('C:/Program Files (x86)'));
+						break;
+					
+					default:
+						pathP = util.promptSelectFolder();
 				}
 
-				let selection = await vscode.window.showOpenDialog(openOptions);
-
-				if (selection === undefined || selection.length !== 1) {
+				let path = await pathP.catch(() => {
 					return Promise.reject();
-				}
+				});
 				
-				let path = selection[0];
 				await config.update('aqsis.path', path.fsPath);
+				console.log(
+					`[LOG][RSL Config] Found AQSIS installation at '${path.fsPath}'`
+				);
 
 				return validateConfig();
+			}
+
+			case "Install AQSIS": {
+				vscode.commands.executeCommand(
+					'vscode.open', vscode.Uri.parse('https://sourceforge.net/projects/aqsis/')
+				);
+				return;
 			}
 		}
 	}
 	else if (config.get('aqsis.binPath') === "") {
 		let aqsisHome = <string>config.get('aqsis.path');
 
-		util.findDirectoryWithContents(aqsisHome, 'bin', ['aqsisrc'])
-			.then(path => config.update('aqsis.binPath', path))
+		return util.findDirectoryWithContents(aqsisHome, 'bin', ['aqsisrc'])
+			.then(path => {
+				config.update('aqsis.binPath', path);
+				console.log(
+					`[LOG][RSL Config] Found AQSIS Bin Path at '${path}'`
+				);
+			})
 			.catch(() => {
-				vscode.window.showErrorMessage("Could not find AQSIS bin path.");
+				let answer = vscode.window.showErrorMessage(
+					"Could not find AQSIS bin path.", "Choose Path..."
+				);
+
+				if (answer === undefined) { Promise.reject(); }
+				
+				return util.promptSelectFolder()
+					.then(path => config.update('aqsis.binPath', path.fsPath))
+					.catch(() => { return Promise.reject(); });
 			});
 	}
 

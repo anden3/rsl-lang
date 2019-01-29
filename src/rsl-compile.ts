@@ -130,8 +130,7 @@ async function getRIBInfo(ribPath: vscode.Uri): Promise<RIBInfo> {
                 vscode.window.showErrorMessage(
                     `Couldn't open file ${vscode.workspace.asRelativePath(ribPath)}: ${err.message}`
                 );
-                resolve(undefined);
-                return;
+                return resolve(undefined);
             }
 
             let imageMatch = data.match(imageRgx);
@@ -139,8 +138,7 @@ async function getRIBInfo(ribPath: vscode.Uri): Promise<RIBInfo> {
                 vscode.window.showErrorMessage(
                     `No image target specified in ${vscode.workspace.asRelativePath(ribPath)}`
                 );
-                resolve(undefined);
-                return;
+                return resolve(undefined);
             }
 
             let image = imageMatch[1];
@@ -152,7 +150,7 @@ async function getRIBInfo(ribPath: vscode.Uri): Promise<RIBInfo> {
                 shaders.push(m[1]);
             }
 
-            resolve({
+            return resolve({
                 name: path.basename(ribPath.fsPath, '.rib'),
                 uri: ribPath,
                 shaders: shaders,
@@ -166,7 +164,7 @@ async function compileShader(shaderUri: vscode.Uri): Promise<null> {
     return new Promise<null>((resolve, reject) => {
         const config = vscode.workspace.getConfiguration('rsl');
         const binPath = config.get('aqsis.binPath');
-        const compiledShaderPath = config.get('folder.compiledShaders');
+        const compiledShaderPath = <string>config.get('folder.compiledShaders');
 
         let shaderName = path.basename(shaderUri.fsPath, '.sl');
         let outputFile = `./${compiledShaderPath}/${shaderName}.slx`;
@@ -174,8 +172,11 @@ async function compileShader(shaderUri: vscode.Uri): Promise<null> {
         let workspace = vscode.workspace.getWorkspaceFolder(shaderUri);
 
         if (workspace === undefined) {
-            reject(`Compilation of ${shaderName} failed: Workspace is no longer available.`);
-            return;
+            return reject(`Compilation of ${shaderName} failed: Workspace is no longer available.`);
+        }
+
+        if (!fs.existsSync(path.join(workspace.uri.fsPath, compiledShaderPath))) {
+            fs.mkdirSync(path.join(workspace.uri.fsPath, compiledShaderPath), { recursive: true});
         }
 
         cp.exec(`"${binPath}/aqsl" -o "${outputFile}" "${shaderUri.fsPath}"`, {
