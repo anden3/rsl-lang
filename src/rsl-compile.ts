@@ -6,6 +6,8 @@ import * as jimp from 'jimp';
 
 import * as util from './util';
 
+import { DiagnosticCollection } from './extension';
+
 interface RIBInfo {
     name: string;
     uri: vscode.Uri;
@@ -47,19 +49,53 @@ export async function compile() {
     }
 
     let shadersToCompile = await getShadersToCompile(info);
-
-    let shaderCompilationPromises: Promise<null>[] = [];
+    let shaderCompilationPromises: Promise<void>[] = [];
+    let abortCompilation = false;
 
     shadersToCompile.forEach(shader => {
-        shaderCompilationPromises.push(compileShader(shader));
+        let shaderName = path.basename(shader.fsPath);
+
+        let p = compileShader(shader)
+            .then(async result => {
+                if (result) {
+                    if (result.includes('...')) { /*Successful compile*/ }
+                    else {
+                        console.log(`[LOG][Shader Compilation] ${shaderName}.rib: ${result}`);
+                    }
+                }
+            })
+            .catch(async (error: string) => {
+                abortCompilation = true;
+
+                let errors = error.split(/\r?\n/);
+                handleShaderErrors(shader, errors);
+            });
+        
+        shaderCompilationPromises.push(p);
     });
 
-    await Promise.all(shaderCompilationPromises).catch(reason => {
-        vscode.window.showErrorMessage(reason);
+    await Promise.all(shaderCompilationPromises);
+
+    if (abortCompilation) {
         return;
-    });
+    }
+    else {
+        shadersToCompile.forEach(sh => {
+            DiagnosticCollection.delete(sh);
+        });
+    }
 
-    let ribCompileP = compileRIB(info);
+    let ribCompileP = compileRIB(info)
+        .then(stdout => {
+            if (stdout) {
+                console.log(`[LOG][RIB Compilation] ${info.name}.rib: ${stdout}`);
+            }
+        })
+        .catch(error => {
+            console.error(`[ERROR][RIB Compilation] ${info.name}.rib: ${error}`);
+            vscode.window.showErrorMessage(error);
+        });
+    
     await ribCompileP;
 
     let imageUri = await convertImage(info);
@@ -160,8 +196,8 @@ async function getRIBInfo(ribPath: vscode.Uri): Promise<RIBInfo> {
     });
 }
 
-async function compileShader(shaderUri: vscode.Uri): Promise<null> {
-    return new Promise<null>((resolve, reject) => {
+async function compileShader(shaderUri: vscode.Uri): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
         const config = vscode.workspace.getConfiguration('rsl');
         const binPath = config.get('aqsis.binPath');
         const compiledShaderPath = <string>config.get('folder.compiledShaders');
@@ -185,26 +221,16 @@ async function compileShader(shaderUri: vscode.Uri): Promise<null> {
                 'AQSISHOME': config.get('aqsis.path'),
                 'AQSIS_SHADER_PATH': `${compiledShaderPath}/:&`
             }
-        }, (error, stdout, stderr) => {
-            if (error) {
-                reject(`Compilation of ${shaderName} failed: ${error.message}`);
-                return;
-            }
-
-            if (stdout) {
-                console.log(`[LOG][Shader Compilation] ${shaderName}.rib: ${stdout}`);
-            }
-            if (stderr) {
-                console.error(`[ERROR][Shader Compilation] ${shaderName}.rib: ${stderr}`);
-            }
-
-            resolve();
-        });
+        }, (error, stdout, stderr) =>
+              error  ? reject(error.message)
+            : stderr ? reject(stderr)
+            : resolve(stdout)
+        );
     });
 }
 
-async function compileRIB(info: RIBInfo): Promise<null> {
-    return new Promise<null>((resolve, reject) => {
+async function compileRIB(info: RIBInfo): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
         const config = vscode.workspace.getConfiguration('rsl');
         const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(info.uri));
 
@@ -214,21 +240,11 @@ async function compileRIB(info: RIBInfo): Promise<null> {
                 'AQSISHOME': config.get('aqsis.path'),
                 'AQSIS_SHADER_PATH': `${config.get('folder.compiledShaders')}/:&`
             }
-        }, (error, stdout, stderr) => {
-            if (error) {
-                reject(`Compilation of ${info.name}.rib failed: ${error.message}`);
-                return;
-            }
-
-            if (stdout) {
-                console.log(`[LOG][RIB Compilation] ${info.name}.rib: ${stdout}`);
-            }
-            if (stderr) {
-                console.error(`[ERROR][RIB Compilation] ${info.name}.rib: ${stderr}`);
-            }
-
-            resolve();
-        }); 
+        }, (error, stdout, stderr) =>
+              error  ? reject(error.message)
+            : stderr ? reject(stderr)
+            : resolve(stdout)
+        ); 
     });
 }
 
@@ -296,6 +312,128 @@ async function convertImage(info: RIBInfo): Promise<vscode.Uri> {
 
 async function displayImage(path: vscode.Uri) {
     return vscode.commands.executeCommand('vscode.open', path, vscode.ViewColumn.Beside);
+}
+
+async function handleShaderErrors(shader: vscode.Uri, errors: string[]): Promise<void> {
+
+    const diagnosticMap: Map<RegExp, (match: RegExpExecArray) => Promise<vscode.Diagnostic | void>> = new Map([
+        [/Command failed/, (match: RegExpExecArray): Promise<vscode.Diagnostic | void> => {
+            return Promise.resolve();
+        }],
+
+        [/Shader not compiled/, (match: RegExpExecArray) => {
+            return Promise.resolve(new vscode.Diagnostic(
+                new vscode.Range(0, 0, 0, 0),
+                "Maximum number of errors reached.", vscode.DiagnosticSeverity.Information
+            ));
+        }],
+
+        [/Unresolved function (\w+) will be/, (match: RegExpExecArray) => {
+            return new Promise<vscode.Diagnostic>(async (resolve, reject) => {
+
+                let defaultRange = await util.getRange(shader, new RegExp(match[1] + "\\("));
+
+                let range = defaultRange.with({
+                    end: defaultRange.end.translate(0, -1)
+                });
+                
+                return resolve(new vscode.Diagnostic(
+                    range,
+                    "Unknown function name. Check if it's spelled correctly."
+                ));
+            });
+        }],
+
+        [/(\d+) : syntax error/, (match: RegExpExecArray) => {
+            return new Promise<vscode.Diagnostic>(async (resolve, reject) => {
+                let lineNum = parseInt(match[1]) - 1;
+                let line = await util.getLine(shader, lineNum);
+
+                let m = /^(\s*)(.+)$/.exec(line);
+
+                if (m === null) {
+                    console.error(`Cannot match line: ${line}`);
+                    debugger;
+                    return reject();
+                }
+
+                return resolve(new vscode.Diagnostic(
+                    new vscode.Range(lineNum, m[1].length, lineNum, m[1].length + m[2].length),
+                    "Syntax error."
+                ));
+            });
+        }],
+
+        [/(\d+) : Arguments to function not valid : (\w+)/, (match: RegExpExecArray) => {
+            return new Promise<vscode.Diagnostic>(async (resolve, reject) => {
+                let lineNum = parseInt(match[1]);
+                let argsRgx = new RegExp(`${match[2]}\\((.+)\\)`);
+
+                let line = await util.getLine(shader, lineNum);
+                let m = argsRgx.exec(line);
+
+                if (m === null) {
+                    console.error("Cannot match function arguments.");
+                    debugger;
+                    return reject();
+                }
+
+                // See if it's possible to match multi-line arguments.
+                let range = new vscode.Range(
+                    lineNum, match[2].length + m.index + 1,
+                    lineNum, match[2].length + m.index + m[1].length + 1
+                );
+
+                return resolve(new vscode.Diagnostic(
+                    range, "Function arguments are invalid."
+                ));
+            });
+        }]
+    ]);
+    
+    // Delete the compiled shader as it is non-functional.
+    const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(shader));
+    const config = vscode.workspace.getConfiguration('rsl');
+
+    let compiledShader = path.join(
+        workspace.uri.fsPath,
+        <string>config.get('folder.compiledShaders'),
+        path.basename(shader.fsPath, path.extname(shader.fsPath)) + ".slx"
+    );
+
+    if (fs.existsSync(compiledShader)) {
+        fs.unlink(compiledShader, err => !err || console.error(err));
+    }
+
+    let promiseArray: Promise<vscode.Diagnostic | void>[] = [];
+
+    errors.forEach(error => {
+        if (error !== "") {
+            let hasMatched = false;
+
+            for (let [rgx, func] of diagnosticMap) {
+                let match;
+        
+                if ((match = rgx.exec(error)) !== null) {
+                    hasMatched = true;
+                    promiseArray.push(func(match));
+                }
+            }
+
+            if (!hasMatched) {
+                console.error(JSON.stringify(error));
+            }
+        }
+    });
+
+    if (promiseArray.length > 0) {
+        let diagnostics = await Promise.all(promiseArray);
+        DiagnosticCollection.set(shader, <vscode.Diagnostic[]>diagnostics.filter(
+            (value) => value instanceof vscode.Diagnostic
+        ));
+    }
+
+    return Promise.resolve();
 }
 
 async function getCompiledShaderNames(workspace: vscode.WorkspaceFolder)

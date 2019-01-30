@@ -4,6 +4,8 @@ import * as vscode from 'vscode';
 import * as util from './util';
 import { compile } from './rsl-compile';
 
+export var DiagnosticCollection: vscode.DiagnosticCollection;
+
 class RSLColorProvider implements vscode.DocumentColorProvider {
 	colorRgx: RegExp = /color\s*\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*\)/g;
 
@@ -113,7 +115,7 @@ async function validateConfig(): Promise<void> {
 				let path = await pathP.catch(() => {
 					return Promise.reject();
 				});
-				
+
 				await config.update('aqsis.path', path.fsPath);
 				console.log(
 					`[LOG][RSL Config] Found AQSIS installation at '${path.fsPath}'`
@@ -178,6 +180,9 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(
 			vscode.languages.registerColorProvider(RSL_MODE, new RSLColorProvider())
 		);
+
+		DiagnosticCollection = vscode.languages.createDiagnosticCollection('rsl');
+		context.subscriptions.push(DiagnosticCollection);
 	});
 }
 
