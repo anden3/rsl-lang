@@ -158,44 +158,46 @@ async function findRIBFile(containingFolder: string): Promise<vscode.Uri | undef
 }
 
 async function getRIBInfo(ribPath: vscode.Uri): Promise<RIBInfo> {
-    const imageRgx = /Display\s+"(.+?)"/;
-    const shaderRgx = /(?:LightSource|Surface|Displacement)\s+"(\w+?)"/g;
+    return new Promise<RIBInfo>((resolve, reject) => {
+        const imageRgx = /Display\s+"(.+?)"/;
+        const shaderRgx = /(?:LightSource|Surface|Displacement)\s+"(\w+?)"/g;
 
-    let data;
+        let data;
 
-    try {
-        data = fs.readFileSync(ribPath.fsPath, 'utf8');
-    }
-    catch (err) {
-        vscode.window.showErrorMessage(
-            `Couldn't open file ${vscode.workspace.asRelativePath(ribPath)}: ${err.message}`
-        );
-        throw Error();
-    }
+        try {
+            data = fs.readFileSync(ribPath.fsPath, 'utf8');
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(
+                `Couldn't open file ${vscode.workspace.asRelativePath(ribPath)}: ${err.message}`
+            );
+            return reject();
+        }
 
-    let imageMatch = data.match(imageRgx);
-    if (imageMatch === null || imageMatch.length === 1) {
-        vscode.window.showErrorMessage(
-            `No image target specified in ${vscode.workspace.asRelativePath(ribPath)}`
-        );
-        throw Error();
-    }
+        let imageMatch = data.match(imageRgx);
+        if (imageMatch === null || imageMatch.length === 1) {
+            vscode.window.showErrorMessage(
+                `No image target specified in ${vscode.workspace.asRelativePath(ribPath)}`
+            );
+            return reject();
+        }
 
-    let image = imageMatch[1];
-    let shaders: string[] = [];
+        let image = imageMatch[1];
+        let shaders: string[] = [];
 
-    let m : RegExpExecArray | null;
-            
-    while (m = shaderRgx.exec(data)) {
-        shaders.push(m[1]);
-    }
+        let m : RegExpExecArray | null;
+                
+        while (m = shaderRgx.exec(data)) {
+            shaders.push(m[1]);
+        }
 
-    return {
-        name: path.basename(ribPath.fsPath, '.rib'),
-        uri: ribPath,
-        shaders: shaders,
-        outImage: image
-    };
+        return resolve({
+            name: path.basename(ribPath.fsPath, '.rib'),
+            uri: ribPath,
+            shaders: shaders,
+            outImage: image
+        });
+    });
 }
 
 async function compileShader(shaderUri: vscode.Uri): Promise<string[]> {
@@ -391,7 +393,7 @@ async function matchErrors(file: vscode.Uri, errors: string[]): Promise<void> {
             
             return new vscode.Diagnostic(
                 range,
-                "Unknown function name. Check if it's spelled correctly."
+                "Unknown function name. Check if it is spelled correctly."
             );
         }],
 
@@ -433,6 +435,17 @@ async function matchErrors(file: vscode.Uri, errors: string[]): Promise<void> {
 
             return new vscode.Diagnostic(
                 range, "Function arguments are invalid."
+            );
+        }],
+
+        [/Parse error at .+\.rib:(\d+) \(col (\d+)\) while reading (.+):/, async (match: RegExpExecArray) => {
+            let lineNum = parseInt(match[1]) - 1;
+            let colStart = parseInt(match[2]) - 1;
+            let name = match[3];
+
+            return new vscode.Diagnostic(
+                new vscode.Range(lineNum, colStart, lineNum, colStart + name.length),
+                "Request not recognized. Check if it is spelled correctly."
             );
         }]
     ]);
