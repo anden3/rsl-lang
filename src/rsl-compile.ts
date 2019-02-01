@@ -40,8 +40,12 @@ export async function compile() {
         ribPath = result;
     }
 
-    let info = await getRIBInfo(ribPath);
-    if (info === undefined) {
+    let info: RIBInfo;
+
+    try {
+        info = await getRIBInfo(ribPath);
+    }
+    catch {
         vscode.window.showErrorMessage(
             `Couldn't load RIB file: ${vscode.workspace.asRelativePath(ribPath)}`
         );
@@ -50,53 +54,50 @@ export async function compile() {
 
     let shadersToCompile = await getShadersToCompile(info);
     let shaderCompilationPromises: Promise<void>[] = [];
-    let abortCompilation = false;
 
     shadersToCompile.forEach(shader => {
         let shaderName = path.basename(shader.fsPath);
 
         let p = compileShader(shader)
-            .then(async result => {
-                if (result) {
+            .then(async results => {
+                results.forEach(result => {
                     if (result.includes('...')) { /*Successful compile*/ }
                     else {
                         console.log(`[LOG][Shader Compilation] ${shaderName}.rib: ${result}`);
                     }
-                }
-            })
-            .catch(async (error: string) => {
-                abortCompilation = true;
-
-                let errors = error.split(/\r?\n/);
-                handleShaderErrors(shader, errors);
+                });
             });
         
         shaderCompilationPromises.push(p);
     });
 
-    await Promise.all(shaderCompilationPromises);
-
-    if (abortCompilation) {
+    try {
+        await Promise.all(shaderCompilationPromises);
+    }
+    catch (err) {
+        const errors: [vscode.Uri, string[]] = err;
+        handleShaderErrors(...errors);
         return;
     }
-    else {
-        shadersToCompile.forEach(sh => {
-            DiagnosticCollection.delete(sh);
+
+    // If everything went well, remove previous diagnostics.
+    shadersToCompile.forEach(sh => {
+        DiagnosticCollection.delete(sh);
+    });
+
+    try {
+        let output = await compileRIB(info);
+
+        output.forEach(element => {
+            console.log(`[LOG][RIB Compilation] ${info.name}.rib: ${element}`);
         });
     }
-
-    let ribCompileP = compileRIB(info)
-        .then(stdout => {
-            if (stdout) {
-                console.log(`[LOG][RIB Compilation] ${info.name}.rib: ${stdout}`);
-            }
-        })
-        .catch(error => {
-            console.error(`[ERROR][RIB Compilation] ${info.name}.rib: ${error}`);
-            vscode.window.showErrorMessage(error);
-        });
+    catch (err) {
+        return;
+    }
     
-    await ribCompileP;
+    // If everything went well, remove previous diagnostics.
+    DiagnosticCollection.delete(ribPath);
 
     let imageUri = await convertImage(info);
     await displayImage(imageUri);
@@ -160,91 +161,127 @@ async function getRIBInfo(ribPath: vscode.Uri): Promise<RIBInfo> {
     const imageRgx = /Display\s+"(.+?)"/;
     const shaderRgx = /(?:LightSource|Surface|Displacement)\s+"(\w+?)"/g;
 
-    return new Promise<RIBInfo>((resolve, reject) => {
-        fs.readFile(ribPath.fsPath, 'utf8', (err, data) => {
-            if (err) {
-                vscode.window.showErrorMessage(
-                    `Couldn't open file ${vscode.workspace.asRelativePath(ribPath)}: ${err.message}`
-                );
-                return resolve(undefined);
-            }
+    let data;
 
-            let imageMatch = data.match(imageRgx);
-            if (imageMatch === null || imageMatch.length === 1) {
-                vscode.window.showErrorMessage(
-                    `No image target specified in ${vscode.workspace.asRelativePath(ribPath)}`
-                );
-                return resolve(undefined);
-            }
-
-            let image = imageMatch[1];
-            let shaders: string[] = [];
-
-            let m : RegExpExecArray | null;
-					
-		    while (m = shaderRgx.exec(data)) {
-                shaders.push(m[1]);
-            }
-
-            return resolve({
-                name: path.basename(ribPath.fsPath, '.rib'),
-                uri: ribPath,
-                shaders: shaders,
-                outImage: image
-            });
-        });
-    });
-}
-
-async function compileShader(shaderUri: vscode.Uri): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-        const config = vscode.workspace.getConfiguration('rsl');
-        const binPath = config.get('aqsis.binPath');
-        const compiledShaderPath = <string>config.get('folder.compiledShaders');
-
-        let shaderName = path.basename(shaderUri.fsPath, '.sl');
-        let outputFile = `./${compiledShaderPath}/${shaderName}.slx`;
-
-        let workspace = vscode.workspace.getWorkspaceFolder(shaderUri);
-
-        if (workspace === undefined) {
-            return reject(`Compilation of ${shaderName} failed: Workspace is no longer available.`);
-        }
-
-        if (!fs.existsSync(path.join(workspace.uri.fsPath, compiledShaderPath))) {
-            fs.mkdirSync(path.join(workspace.uri.fsPath, compiledShaderPath), { recursive: true});
-        }
-
-        cp.exec(`"${binPath}/aqsl" -o "${outputFile}" "${shaderUri.fsPath}"`, {
-            'cwd': workspace.uri.fsPath,
-            'env': {
-                'AQSISHOME': config.get('aqsis.path'),
-                'AQSIS_SHADER_PATH': `${compiledShaderPath}/:&`
-            }
-        }, (error, stdout, stderr) =>
-              error  ? reject(error.message)
-            : stderr ? reject(stderr)
-            : resolve(stdout)
+    try {
+        data = fs.readFileSync(ribPath.fsPath, 'utf8');
+    }
+    catch (err) {
+        vscode.window.showErrorMessage(
+            `Couldn't open file ${vscode.workspace.asRelativePath(ribPath)}: ${err.message}`
         );
-    });
+        throw Error();
+    }
+
+    let imageMatch = data.match(imageRgx);
+    if (imageMatch === null || imageMatch.length === 1) {
+        vscode.window.showErrorMessage(
+            `No image target specified in ${vscode.workspace.asRelativePath(ribPath)}`
+        );
+        throw Error();
+    }
+
+    let image = imageMatch[1];
+    let shaders: string[] = [];
+
+    let m : RegExpExecArray | null;
+            
+    while (m = shaderRgx.exec(data)) {
+        shaders.push(m[1]);
+    }
+
+    return {
+        name: path.basename(ribPath.fsPath, '.rib'),
+        uri: ribPath,
+        shaders: shaders,
+        outImage: image
+    };
 }
 
-async function compileRIB(info: RIBInfo): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-        const config = vscode.workspace.getConfiguration('rsl');
-        const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(info.uri));
+async function compileShader(shaderUri: vscode.Uri): Promise<string[]> {
+    const config = vscode.workspace.getConfiguration('rsl');
+    const binPath = config.get('aqsis.binPath');
+    const compiledShaderPath = <string>config.get('folder.compiledShaders');
 
-        cp.exec(`"${config.get('aqsis.binPath')}/aqsis" "${info.uri.fsPath}"`, {
-            'cwd': workspace.uri.fsPath,
-            'env': {
-                'AQSISHOME': config.get('aqsis.path'),
-                'AQSIS_SHADER_PATH': `${config.get('folder.compiledShaders')}/:&`
+    let shaderName = path.basename(shaderUri.fsPath, '.sl');
+    let outputFile = `./${compiledShaderPath}/${shaderName}.slx`;
+
+    let workspace = vscode.workspace.getWorkspaceFolder(shaderUri);
+
+    if (workspace === undefined) {
+        throw [`Compilation of ${shaderName} failed: Workspace is no longer available.`];
+    }
+
+    if (!fs.existsSync(path.join(workspace.uri.fsPath, compiledShaderPath))) {
+        fs.mkdirSync(path.join(workspace.uri.fsPath, compiledShaderPath), { recursive: true});
+    }
+
+    let proc = cp.spawn(`"${binPath}/aqsl"`, [`-o "${outputFile}"`, `"${shaderUri.fsPath}"`], {
+        'cwd': workspace.uri.fsPath,
+        'env': {
+            'AQSISHOME': config.get('aqsis.path'),
+            'AQSIS_SHADER_PATH': `${compiledShaderPath}/:&`
+        },
+        'shell': true
+    });
+
+    try {
+        return await handleProcess(proc);
+    }
+    catch (err) {
+        throw [shaderUri, err];
+    }
+}
+
+async function compileRIB(info: RIBInfo): Promise<string[]> {
+    const config = vscode.workspace.getConfiguration('rsl');
+    const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(info.uri));
+
+    let proc = cp.spawn(`"${config.get('aqsis.binPath')}/aqsis"`, [`"${info.uri.fsPath}"`], {
+        'cwd': workspace.uri.fsPath,
+        'env': {
+            'AQSISHOME': config.get('aqsis.path'),
+            'AQSIS_SHADER_PATH': `${config.get('folder.compiledShaders')}/:&`
+        },
+        'shell': true
+    });
+
+    try {
+        return await handleProcess(proc);
+    }
+    catch (err) {
+        matchErrors(info.uri, err);
+        throw [];
+    }
+}
+
+async function handleProcess(proc: cp.ChildProcess): Promise<string[]> {
+    return new Promise<string[]>((resolve, reject) => {
+        let output: string = "";
+        let errors: string = "";
+
+        proc.stdout.setEncoding('utf8');
+        proc.stderr.setEncoding('utf8');
+
+        proc.on("error", err => {
+            return reject([err.message]);
+        });
+
+        proc.on("close", () => {
+            if (errors.length > 0) {
+                return reject(errors.split(/\r?\n/).filter(s => s !== ""));
             }
-        }, (error, stdout, stderr) =>
-              error  ? reject(error.message)
-            : stderr ? reject(stderr)
-            : resolve(stdout)
-        ); 
+
+            return resolve(output.split(/\r?\n/).filter(s => s !== ""));
+        });
+
+        proc.stdout.on("data", (chunk: string) => {
+            output = output.concat(chunk);
+        });
+
+        proc.stderr.on("data", (chunk: string) => {
+            errors = errors.concat(chunk);
+        });
     });
 }
 
@@ -315,83 +352,6 @@ async function displayImage(path: vscode.Uri) {
 }
 
 async function handleShaderErrors(shader: vscode.Uri, errors: string[]): Promise<void> {
-
-    const diagnosticMap: Map<RegExp, (match: RegExpExecArray) => Promise<vscode.Diagnostic | void>> = new Map([
-        [/Command failed/, (match: RegExpExecArray): Promise<vscode.Diagnostic | void> => {
-            return Promise.resolve();
-        }],
-
-        [/Shader not compiled/, (match: RegExpExecArray) => {
-            return Promise.resolve(new vscode.Diagnostic(
-                new vscode.Range(0, 0, 0, 0),
-                "Maximum number of errors reached.", vscode.DiagnosticSeverity.Information
-            ));
-        }],
-
-        [/Unresolved function (\w+) will be/, (match: RegExpExecArray) => {
-            return new Promise<vscode.Diagnostic>(async (resolve, reject) => {
-
-                let defaultRange = await util.getRange(shader, new RegExp(match[1] + "\\("));
-
-                let range = defaultRange.with({
-                    end: defaultRange.end.translate(0, -1)
-                });
-                
-                return resolve(new vscode.Diagnostic(
-                    range,
-                    "Unknown function name. Check if it's spelled correctly."
-                ));
-            });
-        }],
-
-        [/(\d+) : syntax error/, (match: RegExpExecArray) => {
-            return new Promise<vscode.Diagnostic>(async (resolve, reject) => {
-                let lineNum = parseInt(match[1]) - 1;
-                let line = await util.getLine(shader, lineNum);
-
-                let m = /^(\s*)(.+)$/.exec(line);
-
-                if (m === null) {
-                    console.error(`Cannot match line: ${line}`);
-                    debugger;
-                    return reject();
-                }
-
-                return resolve(new vscode.Diagnostic(
-                    new vscode.Range(lineNum, m[1].length, lineNum, m[1].length + m[2].length),
-                    "Syntax error."
-                ));
-            });
-        }],
-
-        [/(\d+) : Arguments to function not valid : (\w+)/, (match: RegExpExecArray) => {
-            return new Promise<vscode.Diagnostic>(async (resolve, reject) => {
-                let lineNum = parseInt(match[1]);
-                let argsRgx = new RegExp(`${match[2]}\\((.+)\\)`);
-
-                let line = await util.getLine(shader, lineNum);
-                let m = argsRgx.exec(line);
-
-                if (m === null) {
-                    console.error("Cannot match function arguments.");
-                    debugger;
-                    return reject();
-                }
-
-                // See if it's possible to match multi-line arguments.
-                let range = new vscode.Range(
-                    lineNum, match[2].length + m.index + 1,
-                    lineNum, match[2].length + m.index + m[1].length + 1
-                );
-
-                return resolve(new vscode.Diagnostic(
-                    range, "Function arguments are invalid."
-                ));
-            });
-        }]
-    ]);
-    
-    // Delete the compiled shader as it is non-functional.
     const workspace = (<vscode.WorkspaceFolder>vscode.workspace.getWorkspaceFolder(shader));
     const config = vscode.workspace.getConfiguration('rsl');
 
@@ -402,8 +362,80 @@ async function handleShaderErrors(shader: vscode.Uri, errors: string[]): Promise
     );
 
     if (fs.existsSync(compiledShader)) {
+        // Delete the compiled shader as it is non-functional.
         fs.unlink(compiledShader, err => !err || console.error(err));
     }
+
+    return matchErrors(shader, errors);
+}
+
+async function matchErrors(file: vscode.Uri, errors: string[]): Promise<void> {
+    const diagnosticMap: Map<RegExp, (match: RegExpExecArray) => Promise<vscode.Diagnostic | void>> = new Map([
+        [/Command failed/, async (match: RegExpExecArray): Promise<vscode.Diagnostic | void> => {
+            return;
+        }],
+
+        [/Shader not compiled/, async (match: RegExpExecArray) => {
+            return new vscode.Diagnostic(
+                new vscode.Range(0, 0, 0, 0),
+                "Maximum number of errors reached.", vscode.DiagnosticSeverity.Information
+            );
+        }],
+
+        [/Unresolved function (\w+) will be/, async (match: RegExpExecArray) => {
+            let defaultRange = await util.getRange(file, new RegExp(match[1] + "\\("));
+
+            let range = defaultRange.with({
+                end: defaultRange.end.translate(0, -1)
+            });
+            
+            return new vscode.Diagnostic(
+                range,
+                "Unknown function name. Check if it's spelled correctly."
+            );
+        }],
+
+        [/(\d+) : syntax error/, async (match: RegExpExecArray) => {
+            let lineNum = parseInt(match[1]) - 1;
+            let line = await util.getLine(file, lineNum);
+
+            let m = /^(\s*)(.+)$/.exec(line);
+
+            if (m === null) {
+                console.error(`Cannot match line: ${line}`);
+                throw null;
+            }
+
+            return new vscode.Diagnostic(
+                new vscode.Range(lineNum, m[1].length, lineNum, m[1].length + m[2].length),
+                "Syntax error."
+            );
+        }],
+
+        [/(\d+) : Arguments to function not valid : (\w+)/, async (match: RegExpExecArray) => {
+            let lineNum = parseInt(match[1]);
+            let argsRgx = new RegExp(`${match[2]}\\((.+)\\)`);
+
+            let line = await util.getLine(file, lineNum);
+            let m = argsRgx.exec(line);
+
+            if (m === null) {
+                console.error("Cannot match function arguments.");
+                debugger;
+                throw null;
+            }
+
+            // See if it's possible to match multi-line arguments.
+            let range = new vscode.Range(
+                lineNum, match[2].length + m.index + 1,
+                lineNum, match[2].length + m.index + m[1].length + 1
+            );
+
+            return new vscode.Diagnostic(
+                range, "Function arguments are invalid."
+            );
+        }]
+    ]);
 
     let promiseArray: Promise<vscode.Diagnostic | void>[] = [];
 
@@ -428,17 +460,13 @@ async function handleShaderErrors(shader: vscode.Uri, errors: string[]): Promise
 
     if (promiseArray.length > 0) {
         let diagnostics = await Promise.all(promiseArray);
-        DiagnosticCollection.set(shader, <vscode.Diagnostic[]>diagnostics.filter(
+        DiagnosticCollection.set(file, <vscode.Diagnostic[]>diagnostics.filter(
             (value) => value instanceof vscode.Diagnostic
         ));
     }
-
-    return Promise.resolve();
 }
 
-async function getCompiledShaderNames(workspace: vscode.WorkspaceFolder)
-    : Promise<Map<string, number>>
-{
+async function getCompiledShaderNames(workspace: vscode.WorkspaceFolder): Promise<Map<string, number>> {
     const config = vscode.workspace.getConfiguration('rsl');
     const shaderPath = config.get('folder.compiledShaders');
 
