@@ -53,11 +53,14 @@ class RSLColorProvider implements vscode.DocumentColorProvider {
 }
 
 async function validateConfig(): Promise<void> {
+	const AQSIS_DOWNLOAD_URL: string = "https://sourceforge.net/projects/aqsis/";
+
 	let config = vscode.workspace.getConfiguration('rsl');
 
 	if (config.get('aqsis.path') === "") {
 		let answer = await vscode.window.showErrorMessage(
 			"The path to AQSIS Renderer is not defined!",{ modal: false },
+			"Download AQSIS",
 			"Choose Path..."
 		);
 
@@ -66,6 +69,10 @@ async function validateConfig(): Promise<void> {
 		}
 
 		switch (answer) {
+			case "Download AQSIS": {
+				vscode.env.openExternal(vscode.Uri.parse(AQSIS_DOWNLOAD_URL));
+				break;
+			}
 			case "Choose Path...": {
 				let openOptions: vscode.OpenDialogOptions;
 
